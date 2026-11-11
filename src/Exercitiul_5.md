@@ -1,23 +1,27 @@
-# Exercițiul 5 -- Paralelizarea algoritmului Dijkstra bidirecțional
 
-## Răspuns
+### Exercițiul 5 – Paralelizarea algoritmului Dijkstra bidirecțional
 
-**Două thread-uri**: unul pentru căutarea înainte (din sursă) și unul pentru căutarea înapoi (din destinație).
+**Pentru o paralelizare eficientă, ar trebui utilizate 2 thread-uri**, câte unul pentru fiecare direcție de căutare:
 
-## Argumentare
+- **T1** – execută Dijkstra din nodul sursă spre destinație.
+- **T2** – execută Dijkstra din nodul destinație spre sursă (pe graful transpus, dacă graful este orientat).
 
-Dijkstra bidirecțional rulează două căutări care au structuri de date separate: fiecare are propria coadă de priorități și propriul tablou de distanțe. Cele două căutări pot avansa independent, deci se mapează natural pe două thread-uri.
+### Argumentație
 
-Sincronizarea necesară este mică, dar nu nulă:
+1. **Fiecare căutare este în mare parte secvențială.** La fiecare pas se extrage nodul cu distanța minimă din coada de priorități, iar pasul următor depinde de rezultatele celui curent. Paralelizarea unei singure căutări ar introduce costuri suplimentare de sincronizare.
 
-- **Cel mai bun cost găsit până acum, `μ`**, este partajat. Când o căutare relaxează o muchie către un nod deja atins de cealaltă căutare, actualizează `μ = min(μ, d_f(u) + w(u,v) + d_b(v))`. Se poate face cu o variabilă atomică.
-- **Condiția de oprire**, `top_f + top_b >= μ`, citește vârfurile ambelor cozi, deci cere un mic schimb de informație între thread-uri (valori citite cu `volatile` sau atomic).
+2. **Cele două căutări pot rula în paralel.** Fiecare thread are propria coadă de priorități și propriul vector de distanțe, evitând astfel competiția directă pentru modificarea acelorași structuri de date.
 
-Mai mult de două thread-uri nu aduc câștig semnificativ:
+3. **Sincronizarea este relativ redusă.** Thread-urile trebuie să comunice pentru identificarea punctelor de întâlnire, actualizarea celei mai bune distanțe găsite (`μ`) și verificarea condiției de oprire:
 
-- Dijkstra este inerent secvențial în interiorul unei căutări: următorul nod extras depinde de rezultatul relaxărilor anterioare. Paralelizarea unei singure căutări cere o coadă de priorități partajată sau o partiționare a nodurilor, cu contenție și sincronizare frecventă.
-- Costul acestei sincronizări poate depăși câștigul, mai ales pe grafuri mici sau medii.
+   $$\min(Q_f) + \min(Q_b) \geq \mu$$
 
-## Concluzie
+   unde `Q_f` și `Q_b` sunt cozile de priorități ale celor două căutări, iar `μ` reprezintă lungimea celui mai bun drum complet găsit până în acel moment. Condiția trebuie verificată folosind valori sincronizate corespunzător.
 
-Numărul eficient este 2, câte unul pe direcție, cu `μ` și condiția de oprire ca singurele date partajate.
+4. **Costul thread-urilor suplimentare:** Folosirea a mai mult de 2 thread-uri ar necesita paralelizarea internă a căutărilor, introducând overhead de sincronizare și competiție pentru resurse, fără a garanta un câștig de performanță.
+
+### Concluzie
+
+**Utilizarea a 2 thread-uri este alegerea cea mai potrivită pentru paralelizarea directă a algoritmului**, deoarece permite executarea simultană a celor două direcții, cu un cost relativ redus de sincronizare.
+
+În condiții ideale, pentru aceeași cantitate de lucru, s-ar putea obține un speedup apropiat de 2× față de varianta bidirecțională secvențială. În practică, acesta poate fi mai mic din cauza sincronizării și a dezechilibrului de sarcină (*load imbalance*) dintre cele două căutări.
